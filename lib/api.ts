@@ -1,8 +1,10 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './auth';
 
-const API_BASE_URL =process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-
+// Force same-origin to leverage Next.js /api rewrite proxy
+// and avoid browser CORS issues regardless of env vars.
+const API_BASE_URL = '';
+  
 // Create axios instance
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

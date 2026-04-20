@@ -1,6 +1,49 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import api from '@/lib/api';
+
+interface CountResponse { total: number; }
+interface AnioActivo { id: string; anio: number; }
+
 export default function AdminDashboard() {
+  const [stats, setStats] = useState({
+    alumnos: '---',
+    docentes: '---',
+    padres: '---',
+    pensionesPendientes: '---',
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [alumnosRes, docentesRes, padresRes, anioRes] = await Promise.all([
+          api.get<CountResponse>('/api/alumnos/count'),
+          api.get<CountResponse>('/api/docentes/count'),
+          api.get<CountResponse>('/api/apoderados/count'),
+          api.get<AnioActivo>('/api/anios-escolares/activo'),
+        ]);
+
+        let pendientes = 0;
+        if (anioRes.data?.id) {
+          const pendientesRes = await api.get<CountResponse>(`/api/pensiones/pendientes/count?anioEscolarId=${anioRes.data.id}`);
+          pendientes = pendientesRes.data?.total ?? 0;
+        }
+
+        setStats({
+          alumnos: String(alumnosRes.data?.total ?? 0),
+          docentes: String(docentesRes.data?.total ?? 0),
+          padres: String(padresRes.data?.total ?? 0),
+          pensionesPendientes: String(pendientes),
+        });
+      } catch (error) {
+        console.error('No se pudieron cargar métricas del dashboard', error);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">
@@ -9,10 +52,10 @@ export default function AdminDashboard() {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Total Alumnos" value="---" icon="👨‍🎓" color="blue" />
-        <StatCard title="Profesores" value="---" icon="👨‍🏫" color="green" />
-        <StatCard title="Padres" value="---" icon="👪" color="purple" />
-        <StatCard title="Pensiones Pendientes" value="---" icon="💰" color="yellow" />
+        <StatCard title="Total Alumnos" value={stats.alumnos} icon="👨‍🎓" color="blue" />
+        <StatCard title="Profesores" value={stats.docentes} icon="👨‍🏫" color="green" />
+        <StatCard title="Padres" value={stats.padres} icon="👪" color="purple" />
+        <StatCard title="Pensiones Pendientes" value={stats.pensionesPendientes} icon="💰" color="yellow" />
       </div>
 
       {/* Quick Actions */}

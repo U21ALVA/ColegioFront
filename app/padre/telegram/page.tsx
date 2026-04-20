@@ -21,6 +21,7 @@ export default function PadreTelegramPage() {
   const [codigo, setCodigo] = useState<GenerarCodigoResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,6 +55,20 @@ export default function PadreTelegramPage() {
     }
   };
 
+  const desvincular = async () => {
+    try {
+      setUnlinking(true);
+      setError(null);
+      await api.post('/api/telegram/desvincular');
+      setCodigo(null);
+      await fetchVinculacion();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'No se pudo desvincular Telegram.');
+    } finally {
+      setUnlinking(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Vincular Telegram</h1>
@@ -76,13 +91,25 @@ export default function PadreTelegramPage() {
               <p className="text-sm text-gray-600">Chat ID vinculado: {vinculacion.telegramChatId}</p>
             )}
 
-            <button
-              onClick={generarCodigo}
-              disabled={generating}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              {generating ? 'Generando...' : 'Generar código'}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={generarCodigo}
+                disabled={generating}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {generating ? 'Generando...' : 'Generar código'}
+              </button>
+
+              {vinculacion?.verificado && (
+                <button
+                  onClick={desvincular}
+                  disabled={unlinking}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                >
+                  {unlinking ? 'Desvinculando...' : 'Desvincular Telegram'}
+                </button>
+              )}
+            </div>
 
             {codigo && (
               <div className="p-4 bg-blue-50 rounded-md">
