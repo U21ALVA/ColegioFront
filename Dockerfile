@@ -2,21 +2,17 @@
 # FRONTEND - Next.js Dockerfile
 # ============================================
 
-# --- Dependencies stage ---
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
-
 # --- Build stage ---
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ARG NEXT_PUBLIC_API_URL
+ARG INTERNAL_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV INTERNAL_API_URL=$INTERNAL_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN corepack enable && pnpm run build
+ENV CI=true
+RUN corepack enable && pnpm install --frozen-lockfile && pnpm run build
 
 # --- Production stage ---
 FROM node:20-alpine AS runner

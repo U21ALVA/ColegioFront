@@ -1,4 +1,4 @@
-// File: /home/alva/Documentos/ColegioRP/frontend/app/profesor/cursos/page.tsx
+// File: C:\Users\PC\Documents\PROYECTOS\Colegio\ColegioFront\app\profesor\cursos\page.tsx
 import * as entry from '../../../../../app/profesor/cursos/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

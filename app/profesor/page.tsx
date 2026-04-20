@@ -80,7 +80,7 @@ export default function ProfesorDashboard() {
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Acciones Rápidas</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <ActionButton label="Registrar Notas" href="/profesor/notas" />
+          <ActionButton label="Registrar Notas" href="/profesor/cursos" />
           <ActionButton label="Ver Mis Cursos" href="/profesor/cursos" />
         </div>
       </div>

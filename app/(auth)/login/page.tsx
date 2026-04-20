@@ -5,14 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { LoginRequest } from '@/lib/api';
 
-const QUICK_ACCESS_USERS: Array<{ label: string; username: string; password: string }> = [
-  { label: 'Admin', username: 'admin', password: 'admin123' },
-  { label: 'Profesor', username: 'profesor', password: 'profesor123' },
-  { label: 'Padre', username: 'padre', password: 'padre123' },
-];
-
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
+  const [dni, setDni] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,31 +39,12 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const credentials: LoginRequest = { username, password };
+      const credentials: LoginRequest = { dni, password };
       await login(credentials);
       // Redirect will happen in useEffect when user state updates
     } catch (err: unknown) {
       const errorMessage = err instanceof Error 
         ? err.message 
-        : (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Error al iniciar sesión';
-      setError(errorMessage);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleQuickAccess = async (credentials: LoginRequest) => {
-    setUsername(credentials.username);
-    setPassword(credentials.password);
-    setError('');
-    setIsSubmitting(true);
-
-    try {
-      await login(credentials);
-      // Redirect happens in useEffect when auth state updates
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error
-        ? err.message
         : (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Error al iniciar sesión';
       setError(errorMessage);
     } finally {
@@ -110,20 +85,20 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label 
-                htmlFor="username" 
+                htmlFor="dni" 
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                Usuario
+                DNI
               </label>
               <input
-                id="username"
+                id="dni"
                 type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={dni}
+                onChange={(e) => setDni(e.target.value)}
                 required
                 autoComplete="username"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                placeholder="Ingrese su usuario"
+                placeholder="Ingrese su DNI"
                 disabled={isSubmitting}
               />
             </div>
@@ -165,26 +140,6 @@ export default function LoginPage() {
                 'Ingresar'
               )}
             </button>
-
-            <div className="pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-600 mb-3 text-center">Acceso rápido</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {QUICK_ACCESS_USERS.map((quickUser) => (
-                  <button
-                    key={quickUser.username}
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => handleQuickAccess({
-                      username: quickUser.username,
-                      password: quickUser.password,
-                    })}
-                    className="py-2 px-3 border border-primary-300 text-primary-700 rounded-lg hover:bg-primary-50 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Entrar {quickUser.label}
-                  </button>
-                ))}
-              </div>
-            </div>
           </form>
         </div>
 

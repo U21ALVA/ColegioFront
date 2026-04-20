@@ -1,4 +1,4 @@
-// File: /home/alva/Documentos/ColegioRP/frontend/app/layout.tsx
+// File: C:\Users\PC\Documents\PROYECTOS\Colegio\ColegioFront\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

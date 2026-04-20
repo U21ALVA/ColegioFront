@@ -82,10 +82,10 @@ export default function BecasPage() {
   const fetchFilters = async () => {
     try {
       const [alumnosRes, aniosRes] = await Promise.all([
-        api.get<{ content: Alumno[] }>('/api/alumnos?size=500'),
+        api.get<Alumno[]>('/api/alumnos'),
         api.get<AnioEscolar[]>('/api/anios-escolares'),
       ]);
-      setAlumnos(alumnosRes.data.content || alumnosRes.data);
+      setAlumnos(alumnosRes.data);
       setAniosEscolares(aniosRes.data);
       
       // Set default year

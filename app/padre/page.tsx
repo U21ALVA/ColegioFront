@@ -13,13 +13,13 @@ interface ResumenAcademico {
   seccionNombre: string;
   anioEscolar: number;
   bimestreActual: number | null;
-  promedioGeneral: number | null;
+  promedioGeneral?: number | null;
   literalGeneral: string | null;
   totalCursos: number;
   cursosAprobados: number;
   cursosDesaprobados: number;
   cursos: CursoResumen[];
-  alertas: Alerta[];
+  alertas?: Alerta[];
 }
 
 interface CursoResumen {
@@ -130,7 +130,7 @@ function HijoCard({ hijo }: HijoCardProps) {
     }
   };
 
-  const alertasImportantes = hijo.alertas.filter(a => 
+  const alertasImportantes = (hijo.alertas || []).filter(a => 
     a.tipo === 'BAJO_RENDIMIENTO' || a.tipo === 'RECUPERACION_PENDIENTE'
   );
 
@@ -154,7 +154,7 @@ function HijoCard({ hijo }: HijoCardProps) {
             <div className={`px-3 py-2 rounded-lg border ${getLiteralColor(hijo.literalGeneral)}`}>
               <div className="text-2xl font-bold text-center">{hijo.literalGeneral}</div>
               <div className="text-xs text-center mt-1">
-                {hijo.promedioGeneral?.toFixed(2)}
+                {hijo.promedioGeneral != null ? Number(hijo.promedioGeneral).toFixed(2) : '-'}
               </div>
             </div>
           )}

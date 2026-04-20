@@ -12,7 +12,7 @@ interface ResumenAcademico {
   gradoNombre: string;
   seccionNombre: string;
   anioEscolar: number;
-  promedioGeneral: number | null;
+  promedioGeneral?: number | null;
   literalGeneral: string | null;
   totalCursos: number;
   cursosAprobados: number;
@@ -115,9 +115,9 @@ export default function HijosPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {hijo.promedioGeneral !== null ? (
+                    {hijo.promedioGeneral != null ? (
                       <div className="flex items-center justify-center space-x-2">
-                        <span className="text-sm font-medium">{hijo.promedioGeneral.toFixed(2)}</span>
+                        <span className="text-sm font-medium">{Number(hijo.promedioGeneral).toFixed(2)}</span>
                         <span className={`px-2 py-1 text-xs font-bold rounded ${getLiteralColor(hijo.literalGeneral)}`}>
                           {hijo.literalGeneral}
                         </span>

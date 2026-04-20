@@ -33,9 +33,7 @@ interface Curso {
   id: string;
   nombre: string;
   codigo: string;
-  gradoId: string;
-  gradoNombre: string;
-  gradoNivel: string;
+  nivel: string;
 }
 
 interface Seccion {
@@ -85,6 +83,7 @@ export default function AsignacionesPage() {
   const [formData, setFormData] = useState({
     docenteId: '',
     cursoId: '',
+    gradoId: '',
     seccionId: '',
     anioEscolarId: '',
   });
@@ -153,6 +152,7 @@ export default function AsignacionesPage() {
     setFormData({
       docenteId: '',
       cursoId: '',
+      gradoId: '',
       seccionId: '',
       anioEscolarId: filterAnio || (aniosEscolares.find((a) => a.activo)?.id || ''),
     });
@@ -213,7 +213,7 @@ export default function AsignacionesPage() {
   // Filter cursos by selected seccion's grade
   const selectedSeccion = secciones.find((s) => s.id === formData.seccionId);
   const filteredCursos = selectedSeccion
-    ? cursos.filter((c) => c.gradoId === selectedSeccion.gradoId)
+    ? cursos.filter((c) => c.nivel === selectedSeccion.gradoNivel)
     : cursos;
 
   // Group asignaciones by docente for a better view
@@ -420,7 +420,9 @@ export default function AsignacionesPage() {
             label="Sección"
             value={formData.seccionId}
             onChange={(e) => {
+              const selected = secciones.find((s) => s.id === e.target.value);
               handleChange('seccionId', e.target.value);
+              handleChange('gradoId', selected?.gradoId || '');
               handleChange('cursoId', ''); // Reset curso when section changes
             }}
             options={[

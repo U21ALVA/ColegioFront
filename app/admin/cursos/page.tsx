@@ -1,27 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { SearchInput, Pagination, Badge, Select, Modal, FormField } from '@/components';
+
+type Nivel = 'INICIAL' | 'PRIMARIA' | 'SECUNDARIA';
+type Estado = 'ACTIVO' | 'INACTIVO' | 'ELIMINADO';
 
 interface Curso {
   id: string;
   nombre: string;
-  codigo: string;
-  descripcion: string;
-  horasSemanales: number;
-  gradoId: string;
-  gradoNombre: string;
-  gradoNivel: string;
-  estado: string;
-}
-
-interface Grado {
-  id: string;
-  nombre: string;
-  nivel: string;
+  nivel: Nivel;
+  estado?: Estado;
 }
 
 interface PageResponse<T> {
@@ -33,12 +23,9 @@ interface PageResponse<T> {
 }
 
 export default function CursosPage() {
-  const router = useRouter();
   const [cursos, setCursos] = useState<Curso[]>([]);
-  const [grados, setGrados] = useState<Grado[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterGrado, setFilterGrado] = useState('');
   const [filterNivel, setFilterNivel] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -51,48 +38,34 @@ export default function CursosPage() {
 
   const [formData, setFormData] = useState({
     nombre: '',
-    codigo: '',
-    descripcion: '',
-    horasSemanales: 2,
-    gradoId: '',
+    nivel: '' as '' | Nivel,
   });
 
   useEffect(() => {
-    fetchGrados();
-  }, []);
-
-  useEffect(() => {
     fetchCursos();
-  }, [currentPage, search, filterGrado, filterNivel]);
-
-  const fetchGrados = async () => {
-    try {
-      const response = await api.get<Grado[]>('/api/grados');
-      setGrados(response.data);
-    } catch (error) {
-      console.error('Error fetching grados:', error);
-    }
-  };
+  }, [currentPage, search, filterNivel]);
 
   const fetchCursos = async () => {
     setLoading(true);
     try {
-      let endpoint = `/api/cursos/paginated?page=${currentPage}&size=${pageSize}`;
-      
+      const params = new URLSearchParams();
+      params.set('page', String(currentPage));
+      params.set('size', String(pageSize));
+
       if (search) {
-        endpoint = `/api/cursos/search?q=${encodeURIComponent(search)}&page=${currentPage}&size=${pageSize}`;
-      } else if (filterGrado) {
-        endpoint = `/api/cursos/grado/${filterGrado}?page=${currentPage}&size=${pageSize}`;
-      } else if (filterNivel) {
-        endpoint = `/api/cursos/nivel/${filterNivel}?page=${currentPage}&size=${pageSize}`;
+        params.set('q', search);
       }
-      
-      const response = await api.get<PageResponse<Curso>>(endpoint);
+
+      if (filterNivel) {
+        params.set('nivel', filterNivel);
+      }
+
+      const response = await api.get<PageResponse<Curso>>(`/api/cursos/search?${params.toString()}`);
       setCursos(response.data.content);
       setTotalPages(response.data.totalPages);
       setTotalElements(response.data.totalElements);
-    } catch (error) {
-      console.error('Error fetching cursos:', error);
+    } catch (fetchError) {
+      console.error('Error fetching cursos:', fetchError);
     } finally {
       setLoading(false);
     }
@@ -100,22 +73,11 @@ export default function CursosPage() {
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
-    setFilterGrado('');
-    setFilterNivel('');
     setCurrentPage(0);
   };
 
   const handleNivelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setFilterNivel(e.target.value);
-    setFilterGrado('');
-    setSearch('');
-    setCurrentPage(0);
-  };
-
-  const handleGradoChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setFilterGrado(e.target.value);
-    setFilterNivel('');
-    setSearch('');
     setCurrentPage(0);
   };
 
@@ -124,19 +86,13 @@ export default function CursosPage() {
       setEditingCurso(curso);
       setFormData({
         nombre: curso.nombre,
-        codigo: curso.codigo,
-        descripcion: curso.descripcion || '',
-        horasSemanales: curso.horasSemanales,
-        gradoId: curso.gradoId,
+        nivel: curso.nivel,
       });
     } else {
       setEditingCurso(null);
       setFormData({
         nombre: '',
-        codigo: '',
-        descripcion: '',
-        horasSemanales: 2,
-        gradoId: '',
+        nivel: '',
       });
     }
     setError('');
@@ -155,36 +111,40 @@ export default function CursosPage() {
     setError('');
 
     try {
+      const payload = {
+        nombre: formData.nombre.trim(),
+        nivel: formData.nivel,
+      };
+
       if (editingCurso) {
-        await api.put(`/api/cursos/${editingCurso.id}`, formData);
+        await api.put(`/api/cursos/${editingCurso.id}`, payload);
       } else {
-        await api.post('/api/cursos', formData);
+        await api.post('/api/cursos', payload);
       }
+
       closeModal();
       fetchCursos();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al guardar');
+    } catch (submitError: any) {
+      setError(submitError.response?.data?.message || 'Error al guardar el curso');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (curso: Curso) => {
-    if (window.confirm(`¿Está seguro de eliminar el curso "${curso.nombre}"?`)) {
-      try {
-        await api.delete(`/api/cursos/${curso.id}`);
-        fetchCursos();
-      } catch (error: any) {
-        alert(error.response?.data?.message || 'Error al eliminar');
-      }
+    if (!window.confirm(`¿Está seguro de eliminar el curso "${curso.nombre}"?`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/cursos/${curso.id}`);
+      fetchCursos();
+    } catch (deleteError: any) {
+      alert(deleteError.response?.data?.message || 'Error al eliminar el curso');
     }
   };
 
-  const handleChange = (field: keyof typeof formData, value: string | number) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const getNivelBadge = (nivel: string) => {
+  const getNivelBadge = (nivel: Nivel) => {
     switch (nivel) {
       case 'INICIAL':
         return <Badge variant="info">Inicial</Badge>;
@@ -196,10 +156,6 @@ export default function CursosPage() {
         return <Badge variant="default">{nivel}</Badge>;
     }
   };
-
-  const filteredGrados = filterNivel
-    ? grados.filter((g) => g.nivel === filterNivel)
-    : grados;
 
   return (
     <div className="space-y-6">
@@ -213,16 +169,13 @@ export default function CursosPage() {
         </button>
       </div>
 
-      {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <SearchInput
-              value={search}
-              onChange={handleSearchChange}
-              placeholder="Buscar por nombre o código..."
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SearchInput
+            value={search}
+            onChange={handleSearchChange}
+            placeholder="Buscar por nombre..."
+          />
           <Select
             label="Nivel"
             value={filterNivel}
@@ -234,19 +187,9 @@ export default function CursosPage() {
               { value: 'SECUNDARIA', label: 'Secundaria' },
             ]}
           />
-          <Select
-            label="Grado"
-            value={filterGrado}
-            onChange={handleGradoChange}
-            options={[
-              { value: '', label: 'Todos los grados' },
-              ...filteredGrados.map((g) => ({ value: g.id, label: `${g.nombre} (${g.nivel})` })),
-            ]}
-          />
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
@@ -254,70 +197,27 @@ export default function CursosPage() {
           </div>
         ) : cursos.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            {search || filterGrado || filterNivel ? 'No se encontraron cursos' : 'No hay cursos registrados'}
+            {search || filterNivel ? 'No se encontraron cursos' : 'No hay cursos registrados'}
           </div>
         ) : (
           <>
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Curso
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Código
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Grado
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nivel
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Horas/Sem
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Curso</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nivel</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {cursos.map((curso) => (
                   <tr key={curso.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{curso.nombre}</div>
-                        {curso.descripcion && (
-                          <div className="text-sm text-gray-500 truncate max-w-xs">{curso.descripcion}</div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {curso.codigo}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {curso.gradoNombre}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getNivelBadge(curso.gradoNivel)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {curso.horasSemanales}
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{curso.nombre}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{getNivelBadge(curso.nivel)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => openModal(curso)}
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDelete(curso)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Eliminar
-                        </button>
+                        <button onClick={() => openModal(curso)} className="text-primary-600 hover:text-primary-900">Editar</button>
+                        <button onClick={() => handleDelete(curso)} className="text-red-600 hover:text-red-900">Eliminar</button>
                       </div>
                     </td>
                   </tr>
@@ -325,7 +225,6 @@ export default function CursosPage() {
               </tbody>
             </table>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <Pagination
                 currentPage={currentPage}
@@ -339,69 +238,31 @@ export default function CursosPage() {
         )}
       </div>
 
-      {/* Modal */}
-      <Modal
-        isOpen={showModal}
-        onClose={closeModal}
-        title={editingCurso ? 'Editar Curso' : 'Nuevo Curso'}
-      >
+      <Modal isOpen={showModal} onClose={closeModal} title={editingCurso ? 'Editar Curso' : 'Nuevo Curso'}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm">{error}</div>
-          )}
+          {error && <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm">{error}</div>}
 
           <FormField
             label="Nombre"
             type="text"
             value={formData.nombre}
-            onChange={(e) => handleChange('nombre', e.target.value)}
+            onChange={(e) => setFormData((prev) => ({ ...prev, nombre: e.target.value }))}
             required
             maxLength={100}
           />
 
-          <FormField
-            label="Código"
-            type="text"
-            value={formData.codigo}
-            onChange={(e) => handleChange('codigo', e.target.value)}
-            required
-            maxLength={20}
-            hint="Ej: MAT-01, COM-01"
-          />
-
           <Select
-            label="Grado"
-            value={formData.gradoId}
-            onChange={(e) => handleChange('gradoId', e.target.value)}
+            label="Nivel"
+            value={formData.nivel}
+            onChange={(e) => setFormData((prev) => ({ ...prev, nivel: e.target.value as Nivel }))}
             options={[
-              { value: '', label: 'Seleccione un grado' },
-              ...grados.map((g) => ({ value: g.id, label: `${g.nombre} (${g.nivel})` })),
+              { value: '', label: 'Seleccione un nivel' },
+              { value: 'INICIAL', label: 'Inicial' },
+              { value: 'PRIMARIA', label: 'Primaria' },
+              { value: 'SECUNDARIA', label: 'Secundaria' },
             ]}
             required
           />
-
-          <FormField
-            label="Horas Semanales"
-            type="number"
-            value={formData.horasSemanales.toString()}
-            onChange={(e) => handleChange('horasSemanales', parseInt(e.target.value) || 1)}
-            required
-            min={1}
-            max={20}
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Descripción
-            </label>
-            <textarea
-              value={formData.descripcion}
-              onChange={(e) => handleChange('descripcion', e.target.value)}
-              rows={3}
-              maxLength={500}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-            />
-          </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <button

@@ -13,6 +13,10 @@ interface Comunicado {
   destinoIds: string[];
   estado: 'BORRADOR' | 'PUBLICADO' | 'ARCHIVADO';
   fechaPublicacion?: string;
+  esReunion?: boolean;
+  fechaReunionInicio?: string;
+  fechaReunionFin?: string;
+  lugarReunion?: string;
   createdAt: string;
 }
 
@@ -35,6 +39,20 @@ interface PageResponse<T> {
   totalPages: number;
 }
 
+interface Grado {
+  id: string;
+  nombre: string;
+  nivel: 'INICIAL' | 'PRIMARIA' | 'SECUNDARIA';
+}
+
+interface Seccion {
+  id: string;
+  nombre: string;
+  gradoId: string;
+  gradoNombre: string;
+  gradoNivel: 'INICIAL' | 'PRIMARIA' | 'SECUNDARIA';
+}
+
 export default function AdminComunicadosPage() {
   const [comunicados, setComunicados] = useState<Comunicado[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +64,8 @@ export default function AdminComunicadosPage() {
   const [selectedComunicadoId, setSelectedComunicadoId] = useState<string | null>(null);
   const [entregas, setEntregas] = useState<ComunicadoEntrega[]>([]);
   const [loadingEntregas, setLoadingEntregas] = useState(false);
+  const [grados, setGrados] = useState<Grado[]>([]);
+  const [secciones, setSecciones] = useState<Seccion[]>([]);
   const pageSize = 20;
 
   const [form, setForm] = useState({
@@ -54,6 +74,10 @@ export default function AdminComunicadosPage() {
     adjuntoUrl: '',
     destinoTipo: 'TODOS' as Comunicado['destinoTipo'],
     destinoIdsText: '',
+    esReunion: false,
+    fechaReunionInicio: '',
+    fechaReunionFin: '',
+    lugarReunion: '',
   });
 
   const fetchComunicados = useCallback(async () => {
@@ -77,6 +101,22 @@ export default function AdminComunicadosPage() {
     fetchComunicados();
   }, [fetchComunicados]);
 
+  useEffect(() => {
+    const fetchDestinos = async () => {
+      try {
+        const [gradosRes, seccionesRes] = await Promise.all([
+          api.get<Grado[]>('/api/grados/activos'),
+          api.get<Seccion[]>('/api/secciones'),
+        ]);
+        setGrados(gradosRes.data);
+        setSecciones(seccionesRes.data);
+      } catch (err) {
+        console.error('No se pudieron cargar destinos de comunicados', err);
+      }
+    };
+    fetchDestinos();
+  }, []);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -86,7 +126,8 @@ export default function AdminComunicadosPage() {
       const destinoIds = form.destinoIdsText
         .split(',')
         .map((v) => v.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .filter((v) => /^[0-9a-fA-F-]{36}$/.test(v));
 
       await api.post('/api/comunicados', {
         titulo: form.titulo,
@@ -94,6 +135,10 @@ export default function AdminComunicadosPage() {
         adjuntoUrl: form.adjuntoUrl || null,
         destinoTipo: form.destinoTipo,
         destinoIds,
+        esReunion: form.esReunion,
+        fechaReunionInicio: form.esReunion && form.fechaReunionInicio ? form.fechaReunionInicio : null,
+        fechaReunionFin: form.esReunion && form.fechaReunionFin ? form.fechaReunionFin : null,
+        lugarReunion: form.esReunion ? (form.lugarReunion || null) : null,
       });
 
       setForm({
@@ -102,6 +147,10 @@ export default function AdminComunicadosPage() {
         adjuntoUrl: '',
         destinoTipo: 'TODOS',
         destinoIdsText: '',
+        esReunion: false,
+        fechaReunionInicio: '',
+        fechaReunionFin: '',
+        lugarReunion: '',
       });
       await fetchComunicados();
     } catch (err: any) {
@@ -133,12 +182,53 @@ export default function AdminComunicadosPage() {
     }
   };
 
+  const opcionesDestino = (() => {
+    if (form.destinoTipo === 'GRADO') {
+      return grados.map((g) => ({
+        id: g.id,
+        label: `${g.nombre} (${g.nivel})`,
+      }));
+    }
+
+    if (form.destinoTipo === 'SECCION') {
+      return secciones.map((s) => ({
+        id: s.id,
+        label: `${s.gradoNombre} ${s.nombre} (${s.gradoNivel})`,
+      }));
+    }
+
+    if (form.destinoTipo === 'NIVEL') {
+      const niveles: Array<'INICIAL' | 'PRIMARIA' | 'SECUNDARIA'> = ['INICIAL', 'PRIMARIA', 'SECUNDARIA'];
+      return niveles.map((nivel) => {
+        const gradoIds = grados.filter((g) => g.nivel === nivel).map((g) => g.id);
+        return {
+          id: gradoIds.join(','),
+          label: `${nivel} (${gradoIds.length} grados)`,
+        };
+      });
+    }
+
+    return [] as Array<{ id: string; label: string }>;
+  })();
+
+  const toggleDestinoId = (value: string) => {
+    const parts = value.split(',').map((x) => x.trim()).filter(Boolean);
+    const current = new Set(form.destinoIdsText.split(',').map((x) => x.trim()).filter(Boolean));
+    const allPresent = parts.every((p) => current.has(p));
+    if (allPresent) {
+      parts.forEach((p) => current.delete(p));
+    } else {
+      parts.forEach((p) => current.add(p));
+    }
+    setForm({ ...form, destinoIdsText: Array.from(current).join(',') });
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Comunicados</h1>
 
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Crear comunicado (borrador)</h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Crear comunicado institucional</h2>
         {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm">{error}</div>}
 
         <form onSubmit={handleCreate} className="space-y-4">
@@ -193,18 +283,89 @@ export default function AdminComunicadosPage() {
                 value={form.destinoIdsText}
                 onChange={(e) => setForm({ ...form, destinoIdsText: e.target.value })}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                placeholder={form.destinoTipo === 'TODOS' ? 'Opcional para TODOS' : form.destinoTipo === 'NIVEL' ? 'Para NIVEL: IDs de grados o dejar vacío y enviar niveles desde API' : 'Requerido'}
+                placeholder={form.destinoTipo === 'TODOS' ? 'No requerido para TODOS' : 'Seleccioná desde la lista o pegá UUIDs'}
               />
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
-          >
-            {saving ? 'Guardando...' : 'Guardar borrador'}
-          </button>
+          <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3 space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-indigo-900">
+              <input
+                type="checkbox"
+                checked={form.esReunion}
+                onChange={(e) => setForm({ ...form, esReunion: e.target.checked })}
+              />
+              Este comunicado define una reunión
+            </label>
+
+            {form.esReunion && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Inicio reunión</label>
+                  <input
+                    type="datetime-local"
+                    value={form.fechaReunionInicio}
+                    onChange={(e) => setForm({ ...form, fechaReunionInicio: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                    required={form.esReunion}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Fin reunión</label>
+                  <input
+                    type="datetime-local"
+                    value={form.fechaReunionFin}
+                    onChange={(e) => setForm({ ...form, fechaReunionFin: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Lugar / enlace</label>
+                  <input
+                    value={form.lugarReunion}
+                    onChange={(e) => setForm({ ...form, lugarReunion: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                    placeholder="Auditorio / Meet / Zoom"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {form.destinoTipo !== 'TODOS' && opcionesDestino.length > 0 && (
+            <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
+              <p className="text-sm font-medium text-gray-700 mb-2">Seleccioná destinatarios</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-44 overflow-y-auto">
+                {opcionesDestino.map((op) => {
+                  const parts = op.id.split(',').map((x) => x.trim()).filter(Boolean);
+                  const current = new Set(form.destinoIdsText.split(',').map((x) => x.trim()).filter(Boolean));
+                  const checked = parts.every((p) => current.has(p));
+                  return (
+                    <label key={op.id + op.label} className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleDestinoId(op.id)}
+                      />
+                      <span>{op.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-4 pt-4">
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Guardando...' : 'Guardar borrador'}
+            </button>
+
+            <span className="text-sm text-gray-500 self-center">Al publicar, el sistema enviará el comunicado por Telegram a los destinatarios vinculados.</span>
+          </div>
         </form>
       </div>
 
@@ -227,6 +388,13 @@ export default function AdminComunicadosPage() {
                       Destino: {c.destinoTipo} | Estado: {c.estado}
                       {c.fechaPublicacion ? ` | Publicado: ${new Date(c.fechaPublicacion).toLocaleString()}` : ''}
                     </p>
+                    {c.esReunion && c.fechaReunionInicio && (
+                      <p className="text-xs text-indigo-700 mt-1">
+                        📅 Reunión: {new Date(c.fechaReunionInicio).toLocaleString()}
+                        {c.fechaReunionFin ? ` - ${new Date(c.fechaReunionFin).toLocaleString()}` : ''}
+                        {c.lugarReunion ? ` | ${c.lugarReunion}` : ''}
+                      </p>
+                    )}
                   </div>
 
                   {c.estado === 'BORRADOR' && (

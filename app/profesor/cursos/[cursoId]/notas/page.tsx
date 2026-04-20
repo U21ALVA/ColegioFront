@@ -30,6 +30,7 @@ interface Bimestre {
   id: string;
   numero: number;
   cerrado: boolean;
+  anioEscolarId?: string;
 }
 
 interface Curso {
@@ -65,10 +66,9 @@ export default function NotasEntryPage() {
       setLoading(true);
       setError(null);
 
-      const [cursoRes, bimestresRes, alumnosRes] = await Promise.all([
+      const [cursoRes, bimestresRes] = await Promise.all([
         api.get<Curso>(`/api/cursos/${cursoId}`),
         api.get<Bimestre[]>('/api/bimestres/activos'),
-        api.get<Alumno[]>(`/api/alumnos/grado/${gradoId}/seccion/${seccionId}`),
       ]);
 
       setCurso(cursoRes.data);
@@ -84,7 +84,16 @@ export default function NotasEntryPage() {
         }
       }
 
-      // Initialize notas with students
+      const anioEscolarId = bimestresRes.data[0]?.anioEscolarId;
+      if (!anioEscolarId) {
+        setNotas([]);
+        return;
+      }
+
+      const alumnosRes = await api.get<Alumno[]>(
+        `/api/matriculas/alumnos?cursoId=${cursoId}&seccionId=${seccionId}&anioEscolarId=${anioEscolarId}`
+      );
+
       const initialNotas: Nota[] = alumnosRes.data.map((alumno: Alumno) => ({
         alumnoId: alumno.id,
         alumnoNombres: alumno.nombres,
@@ -97,7 +106,6 @@ export default function NotasEntryPage() {
         notaFinal: null,
         literal: null,
       }));
-
       setNotas(initialNotas);
     } catch (err) {
       console.error('Error fetching data:', err);

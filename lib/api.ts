@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './auth';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://colegiorp-b.jumproyect.me';
+const API_BASE_URL =process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
@@ -67,7 +67,7 @@ api.interceptors.response.use(
 
 // Auth API functions
 export interface LoginRequest {
-  username: string;
+  dni: string;
   password: string;
 }
 
