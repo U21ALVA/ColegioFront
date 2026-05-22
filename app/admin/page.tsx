@@ -5,6 +5,12 @@ import api from '@/lib/api';
 
 interface CountResponse { total: number; }
 interface AnioActivo { id: string; anio: number; }
+interface ActividadReciente {
+  tipo: 'acceso' | 'pago';
+  titulo: string;
+  descripcion: string;
+  fecha: string;
+}
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -13,15 +19,17 @@ export default function AdminDashboard() {
     padres: '---',
     pensionesPendientes: '---',
   });
+  const [actividad, setActividad] = useState<ActividadReciente[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [alumnosRes, docentesRes, padresRes, anioRes] = await Promise.all([
+        const [alumnosRes, docentesRes, padresRes, anioRes, actividadRes] = await Promise.all([
           api.get<CountResponse>('/api/alumnos/count'),
           api.get<CountResponse>('/api/docentes/count'),
           api.get<CountResponse>('/api/apoderados/count'),
           api.get<AnioActivo>('/api/anios-escolares/activo'),
+          api.get<ActividadReciente[]>('/api/admin/dashboard/actividad-reciente?limit=8'),
         ]);
 
         let pendientes = 0;
@@ -36,6 +44,7 @@ export default function AdminDashboard() {
           padres: String(padresRes.data?.total ?? 0),
           pensionesPendientes: String(pendientes),
         });
+        setActividad(actividadRes.data ?? []);
       } catch (error) {
         console.error('No se pudieron cargar métricas del dashboard', error);
       }
@@ -72,9 +81,27 @@ export default function AdminDashboard() {
       {/* Recent Activity */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Actividad Reciente</h2>
-        <div className="text-gray-500 text-center py-8">
-          <p>Las estadísticas y actividad se mostrarán aquí una vez implementados los módulos correspondientes.</p>
-        </div>
+        {actividad.length === 0 ? (
+          <div className="text-gray-500 text-center py-8">
+            <p>No hay actividad reciente para mostrar.</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {actividad.map((item, index) => (
+              <li key={`${item.tipo}-${item.fecha}-${index}`} className="py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{item.titulo}</p>
+                    <p className="text-sm text-gray-600">{item.descripcion}</p>
+                  </div>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">
+                    {new Date(item.fecha).toLocaleString('es-PE')}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

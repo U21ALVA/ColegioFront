@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import api from '@/lib/api';
+import Link from 'next/link';
 
 interface AnioEscolar {
   id: string;
@@ -77,6 +78,26 @@ export default function MatriculasPage() {
     () => filters.seccionId ? alumnos.filter((a) => a.seccionId === filters.seccionId) : alumnos,
     [alumnos, filters.seccionId]
   );
+
+  const matriculasPorSeccion = useMemo(() => {
+    const map = new Map<string, Matricula[]>();
+    matriculas.forEach((matricula) => {
+      const key = `${matricula.seccionId}|${matricula.seccionNombre}`;
+      const group = map.get(key);
+      if (group) {
+        group.push(matricula);
+        return;
+      }
+      map.set(key, [matricula]);
+    });
+
+    return Array.from(map.entries())
+      .map(([key, items]) => {
+        const [seccionId, seccionNombre] = key.split('|');
+        return { seccionId, seccionNombre, items };
+      })
+      .sort((a, b) => a.seccionNombre.localeCompare(b.seccionNombre));
+  }, [matriculas]);
 
   useEffect(() => {
     fetchCatalogs();
@@ -192,6 +213,12 @@ export default function MatriculasPage() {
         <p className="text-sm text-gray-600 mt-1">
           Vinculá alumnos a cursos para habilitar el registro de notas por profesor.
         </p>
+        <Link
+          href="/admin/matriculas/por-curso"
+          className="inline-flex mt-3 text-sm font-medium text-primary-700 hover:text-primary-800"
+        >
+          Ver matriculados por secciones en un curso
+        </Link>
       </div>
 
       {error && <div className="p-3 rounded border border-red-200 bg-red-50 text-red-700 text-sm">{error}</div>}
@@ -232,42 +259,55 @@ export default function MatriculasPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-4 py-3 border-b bg-gray-50 font-semibold text-gray-700">Matrículas activas ({matriculas.length})</div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
-              <tr>
-                <th className="px-4 py-2 text-left">Alumno</th>
-                <th className="px-4 py-2 text-left">Curso</th>
-                <th className="px-4 py-2 text-left">Sección</th>
-                <th className="px-4 py-2 text-left">Año</th>
-                <th className="px-4 py-2 text-left">Origen</th>
-                <th className="px-4 py-2 text-right">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matriculas.map((m) => (
-                <tr key={m.id} className="border-t">
-                  <td className="px-4 py-2">{m.alumnoApellidos}, {m.alumnoNombres} <span className="text-xs text-gray-500">({m.alumnoCodigo})</span></td>
-                  <td className="px-4 py-2">{m.cursoNombre}</td>
-                  <td className="px-4 py-2">{m.seccionNombre}</td>
-                  <td className="px-4 py-2">{m.anioEscolar}</td>
-                  <td className="px-4 py-2">{m.origen}</td>
-                  <td className="px-4 py-2 text-right">
-                    <button onClick={() => eliminar(m.id)} className="text-red-600 hover:text-red-800">Quitar</button>
-                  </td>
-                </tr>
-              ))}
-              {matriculas.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">Sin matrículas para los filtros seleccionados.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {matriculas.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+          Sin matrículas para los filtros seleccionados.
         </div>
-      </div>
+      ) : (
+        <div className="space-y-4">
+          {matriculasPorSeccion.map((grupo) => (
+            <div key={grupo.seccionId} className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-700">Sección {grupo.seccionNombre}</h3>
+                <span className="text-xs text-gray-500">{grupo.items.length} matrículas</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Alumno</th>
+                      <th className="px-4 py-2 text-left">Curso</th>
+                      <th className="px-4 py-2 text-left">Año</th>
+                      <th className="px-4 py-2 text-left">Origen</th>
+                      <th className="px-4 py-2 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grupo.items.map((m) => (
+                      <tr key={m.id} className="border-t">
+                        <td className="px-4 py-2">{m.alumnoApellidos}, {m.alumnoNombres} <span className="text-xs text-gray-500">({m.alumnoCodigo})</span></td>
+                        <td className="px-4 py-2">
+                          <Link
+                            href={`/admin/matriculas/por-curso?cursoId=${m.cursoId}&anioEscolarId=${m.anioEscolarId}`}
+                            className="text-primary-700 hover:text-primary-800"
+                          >
+                            {m.cursoNombre}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-2">{m.anioEscolar}</td>
+                        <td className="px-4 py-2">{m.origen}</td>
+                        <td className="px-4 py-2 text-right">
+                          <button onClick={() => eliminar(m.id)} className="text-red-600 hover:text-red-800">Quitar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

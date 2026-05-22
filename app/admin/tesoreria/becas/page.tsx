@@ -211,6 +211,7 @@ export default function BecasPage() {
       <div className="bg-white rounded-lg shadow p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <SearchInput
+            label="Buscar"
             value={search}
             onChange={setSearch}
             placeholder="Buscar por alumno..."

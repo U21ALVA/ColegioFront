@@ -67,6 +67,8 @@ export default function AsignacionesPage() {
   const [aniosEscolares, setAniosEscolares] = useState<AnioEscolar[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showDocenteModal, setShowDocenteModal] = useState(false);
+  const [selectedDocente, setSelectedDocente] = useState<{ id: string; nombres: string; apellidos: string; dni: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -237,6 +239,15 @@ export default function AsignacionesPage() {
     {} as Record<string, { docente: { id: string; nombres: string; apellidos: string; dni: string }; cursos: DocenteCurso[] }>
   );
 
+  const docentesRows = Object.values(groupedByDocente);
+
+  const openDocenteModal = (docente: { id: string; nombres: string; apellidos: string; dni: string }) => {
+    setSelectedDocente(docente);
+    setShowDocenteModal(true);
+  };
+
+  const asignacionesDocente = selectedDocente ? (groupedByDocente[selectedDocente.id]?.cursos || []) : [];
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -321,45 +332,30 @@ export default function AsignacionesPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Docente
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Curso
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Grado / Sección
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nivel
-                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Áreas asignadas</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {asignaciones.map((asignacion) => (
-                  <tr key={asignacion.id} className="hover:bg-gray-50">
+                {docentesRows.map((row) => (
+                  <tr key={row.docente.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {asignacion.docenteApellidos}, {asignacion.docenteNombres}
+                        {row.docente.apellidos}, {row.docente.nombres}
                       </div>
-                      <div className="text-sm text-gray-500">DNI: {asignacion.docenteDni}</div>
+                      <div className="text-sm text-gray-500">DNI: {row.docente.dni}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{asignacion.cursoNombre}</div>
-                      <div className="text-sm text-gray-500">{asignacion.cursoCodigo}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {asignacion.gradoNombre} {asignacion.seccionNombre}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getNivelBadge(asignacion.gradoNivel)}
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <Badge variant="info">{row.cursos.length}</Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <button
-                        onClick={() => handleDelete(asignacion)}
-                        className="text-red-600 hover:text-red-900"
+                        onClick={() => openDocenteModal(row.docente)}
+                        className="text-primary-600 hover:text-primary-900"
                       >
-                        Eliminar
+                        Ver áreas
                       </button>
                     </td>
                   </tr>
@@ -380,6 +376,44 @@ export default function AsignacionesPage() {
           </>
         )}
       </div>
+
+      <Modal
+        isOpen={showDocenteModal}
+        onClose={() => setShowDocenteModal(false)}
+        title={selectedDocente ? `Áreas asignadas - ${selectedDocente.apellidos}, ${selectedDocente.nombres}` : 'Áreas asignadas'}
+        size="xl"
+      >
+        {!selectedDocente ? (
+          <div className="text-sm text-gray-500">Sin docente seleccionado.</div>
+        ) : asignacionesDocente.length === 0 ? (
+          <div className="text-sm text-gray-500">Este docente no tiene asignaciones.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Curso</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Grado/Sección</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nivel</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {asignacionesDocente.map((a) => (
+                  <tr key={a.id}>
+                    <td className="px-4 py-2 text-sm text-gray-900">{a.cursoNombre} <span className="text-xs text-gray-500">({a.cursoCodigo})</span></td>
+                    <td className="px-4 py-2 text-sm text-gray-900">{a.gradoNombre} {a.seccionNombre}</td>
+                    <td className="px-4 py-2">{getNivelBadge(a.gradoNivel)}</td>
+                    <td className="px-4 py-2 text-sm">
+                      <button onClick={() => handleDelete(a)} className="text-red-600 hover:text-red-900">Eliminar</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal */}
       <Modal isOpen={showModal} onClose={closeModal} title="Nueva Asignación">

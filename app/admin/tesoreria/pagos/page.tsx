@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
-import { Pagination, Badge, Select } from '@/components';
+import { Pagination, Badge, Select, Modal } from '@/components';
 
 interface Pago {
   id: string;
@@ -36,6 +36,17 @@ interface PageResponse<T> {
 interface Stats {
   totalRecaudado: number;
   cantidadPagos: number;
+  totalEfectivo: number;
+  totalTarjeta: number;
+}
+
+interface Pension {
+  id: string;
+  alumnoNombres: string;
+  alumnoApellidos: string;
+  nombreMes: string;
+  montoFinal: number;
+  estado: 'PENDIENTE' | 'PAGADO' | 'VENCIDO' | 'PARCIAL';
 }
 
 const ESTADOS = [
@@ -50,14 +61,19 @@ const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio
 export default function PagosPage() {
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [aniosEscolares, setAniosEscolares] = useState<AnioEscolar[]>([]);
-  const [stats, setStats] = useState<Stats>({ totalRecaudado: 0, cantidadPagos: 0 });
+  const [stats, setStats] = useState<Stats>({ totalRecaudado: 0, cantidadPagos: 0, totalEfectivo: 0, totalTarjeta: 0 });
   const [loading, setLoading] = useState(true);
+  const [savingManual, setSavingManual] = useState(false);
 
   const [filterEstado, setFilterEstado] = useState('');
   const [selectedAnioEscolar, setSelectedAnioEscolar] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [pensionesPendientes, setPensionesPendientes] = useState<Pension[]>([]);
+  const [selectedPensionId, setSelectedPensionId] = useState('');
+  const [montoManual, setMontoManual] = useState('');
   const pageSize = 20;
 
   useEffect(() => {
@@ -119,15 +135,70 @@ export default function PagosPage() {
     ) : estado;
   };
 
+  const getMetodoLabel = (metodo?: string) => {
+    const value = (metodo || '').toLowerCase();
+    if (['card', 'tarjeta', 'stripe'].includes(value)) return 'Tarjeta';
+    if (['efectivo', 'cash'].includes(value)) return 'Efectivo';
+    return metodo || '-';
+  };
+
+  const openManualModal = async () => {
+    setShowManualModal(true);
+    try {
+      const response = await api.get<PageResponse<Pension>>('/api/pensiones?page=0&size=100&estado=PENDIENTE');
+      setPensionesPendientes(response.data.content);
+      if (response.data.content.length > 0) {
+        const first = response.data.content[0];
+        setSelectedPensionId(first.id);
+        setMontoManual(first.montoFinal.toString());
+      }
+    } catch (error) {
+      console.error('Error cargando pensiones pendientes:', error);
+      setPensionesPendientes([]);
+    }
+  };
+
+  const handlePensionChange = (id: string) => {
+    setSelectedPensionId(id);
+    const pension = pensionesPendientes.find((p) => p.id === id);
+    if (pension) setMontoManual(pension.montoFinal.toString());
+  };
+
+  const registrarPagoEfectivo = async () => {
+    if (!selectedPensionId) return;
+
+    setSavingManual(true);
+    try {
+      await api.post('/api/pagos/manual', {
+        pensionId: selectedPensionId,
+        monto: Number(montoManual),
+        metodoPago: 'efectivo',
+      });
+
+      setShowManualModal(false);
+      await Promise.all([fetchPagos(), selectedAnioEscolar ? fetchStats() : Promise.resolve()]);
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'No se pudo registrar el pago en efectivo');
+    } finally {
+      setSavingManual(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Reporte de Pagos</h1>
-        <p className="text-gray-600 mt-1">Historial de todos los pagos recibidos vía Stripe</p>
+        <p className="text-gray-600 mt-1">Historial de pagos por tarjeta y efectivo</p>
+        <button
+          onClick={openManualModal}
+          className="mt-3 inline-flex items-center px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700"
+        >
+          Registrar pago en efectivo
+        </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-green-50 rounded-lg shadow p-6">
           <div className="text-3xl font-bold text-green-800">
             S/. {stats.totalRecaudado.toFixed(2)}
@@ -141,6 +212,14 @@ export default function PagosPage() {
         <div className="bg-gray-50 rounded-lg shadow p-6">
           <div className="text-3xl font-bold text-gray-800">{totalElements}</div>
           <div className="text-sm text-gray-600">Total Transacciones</div>
+        </div>
+        <div className="bg-amber-50 rounded-lg shadow p-6">
+          <div className="text-3xl font-bold text-amber-800">S/. {stats.totalEfectivo.toFixed(2)}</div>
+          <div className="text-sm text-amber-700">Total Efectivo</div>
+        </div>
+        <div className="bg-indigo-50 rounded-lg shadow p-6">
+          <div className="text-3xl font-bold text-indigo-800">S/. {stats.totalTarjeta.toFixed(2)}</div>
+          <div className="text-sm text-indigo-700">Total Tarjeta</div>
         </div>
       </div>
 
@@ -216,7 +295,7 @@ export default function PagosPage() {
                         {getEstadoBadge(pago.estado)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {pago.metodoPago || '-'}
+                        {getMetodoLabel(pago.metodoPago)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                         {pago.stripePaymentIntentId ? (
@@ -240,6 +319,55 @@ export default function PagosPage() {
           </>
         )}
       </div>
+
+      <Modal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        title="Registrar pago en efectivo"
+      >
+        <div className="space-y-4">
+          <Select
+            label="Pensión pendiente"
+            value={selectedPensionId}
+            onChange={(e) => handlePensionChange(e.target.value)}
+            options={[
+              { value: '', label: pensionesPendientes.length ? 'Selecciona una pensión' : 'Sin pensiones pendientes' },
+              ...pensionesPendientes.map((p) => ({
+                value: p.id,
+                label: `${p.alumnoApellidos}, ${p.alumnoNombres} - ${p.nombreMes} (S/. ${p.montoFinal.toFixed(2)})`,
+              })),
+            ]}
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Monto</label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={montoManual}
+              onChange={(e) => setMontoManual(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => setShowManualModal(false)}
+              className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={registrarPagoEfectivo}
+              disabled={!selectedPensionId || !montoManual || savingManual}
+              className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {savingManual ? 'Guardando...' : 'Confirmar pago'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

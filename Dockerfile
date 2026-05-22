@@ -12,7 +12,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV INTERNAL_API_URL=$INTERNAL_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV CI=true
-RUN corepack enable && pnpm install --frozen-lockfile && pnpm run build
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate && pnpm install --frozen-lockfile && pnpm run build
 
 # --- Production stage ---
 FROM node:20-alpine AS runner

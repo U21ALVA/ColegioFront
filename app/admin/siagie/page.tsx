@@ -387,6 +387,10 @@ function ExportarTab() {
 
   const handleExport = async (e: React.FormEvent) => {
     e.preventDefault();
+    await doExport('XLSX');
+  };
+
+  const doExport = async (formato: 'XLSX' | 'CSV' | 'PDF') => {
     if (!form.anioEscolarId || !form.bimestreId) {
       setMessage({ type: 'error', text: 'Debe seleccionar anio escolar y bimestre' });
       return;
@@ -404,10 +408,11 @@ function ExportarTab() {
         gradoId: form.gradoId || undefined,
         seccionId: form.seccionId || undefined,
         cursoIds: form.cursoIds.length > 0 ? form.cursoIds : undefined,
+        formato,
       });
 
       setLastExport({ fileName: result.fileName, downloadUrl: result.downloadUrl });
-      setMessage({ type: 'success', text: 'Exportacion generada exitosamente' });
+      setMessage({ type: 'success', text: `Exportacion ${formato} generada exitosamente` });
 
       // Refresh exportaciones list
       await fetchExportaciones();
@@ -424,7 +429,7 @@ function ExportarTab() {
   const handleDownload = async (exportacion: ExportacionSiagieDto) => {
     try {
       setDownloading(exportacion.id);
-      await siagieApi.descargarExportacion(exportacion.id, `siagie_${exportacion.periodo}.xlsx`);
+      await siagieApi.descargarExportacion(exportacion.id);
     } catch (error: any) {
       setMessage({
         type: 'error',
@@ -581,30 +586,31 @@ function ExportarTab() {
                 </div>
               )}
             </div>
-            <button
-              type="submit"
-              disabled={exporting || !form.anioEscolarId || !form.bimestreId}
-              className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              {exporting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                  Exportando...
-                </>
-              ) : (
-                <>
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                    />
-                  </svg>
-                  Exportar
-                </>
-              )}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => doExport('CSV')}
+                disabled={exporting || !form.anioEscolarId || !form.bimestreId}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {exporting ? 'Exportando...' : 'Exportar CSV'}
+              </button>
+              <button
+                type="button"
+                onClick={() => doExport('PDF')}
+                disabled={exporting || !form.anioEscolarId || !form.bimestreId}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {exporting ? 'Exportando...' : 'Exportar PDF'}
+              </button>
+              <button
+                type="submit"
+                disabled={exporting || !form.anioEscolarId || !form.bimestreId}
+                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
+              >
+                {exporting ? 'Exportando...' : 'Exportar XLSX'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

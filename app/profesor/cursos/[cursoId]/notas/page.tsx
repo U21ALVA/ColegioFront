@@ -54,6 +54,8 @@ export default function NotasEntryPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showJustificacionModal, setShowJustificacionModal] = useState(false);
+  const [justificacion, setJustificacion] = useState('');
 
   const fetchData = useCallback(async () => {
     if (!gradoId || !seccionId) {
@@ -214,7 +216,7 @@ export default function NotasEntryPage() {
     }
   };
 
-  const handleSave = async () => {
+  const guardarNotas = async () => {
     if (!selectedBimestre) {
       setError('Debe seleccionar un bimestre');
       return;
@@ -223,6 +225,11 @@ export default function NotasEntryPage() {
     const bimestre = bimestres.find(b => b.id === selectedBimestre);
     if (bimestre?.cerrado) {
       setError('El bimestre está cerrado. No se pueden guardar cambios.');
+      return;
+    }
+
+    if (!justificacion.trim()) {
+      setError('Debe registrar una justificación para modificar notas');
       return;
     }
 
@@ -245,9 +252,12 @@ export default function NotasEntryPage() {
         cursoId,
         bimestreId: selectedBimestre,
         notas: notasToSave,
+        justificacion: justificacion.trim(),
       });
 
       setSuccess('Notas guardadas exitosamente');
+      setShowJustificacionModal(false);
+      setJustificacion('');
       
       // Refresh grades
       await fetchNotas();
@@ -257,6 +267,11 @@ export default function NotasEntryPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveClick = () => {
+    setError(null);
+    setShowJustificacionModal(true);
   };
 
   const currentBimestre = bimestres.find(b => b.id === selectedBimestre);
@@ -296,7 +311,7 @@ export default function NotasEntryPage() {
           
           {isEditable && (
             <button
-              onClick={handleSave}
+              onClick={handleSaveClick}
               disabled={saving}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -419,6 +434,46 @@ export default function NotasEntryPage() {
           </table>
         </div>
       </div>
+
+      {showJustificacionModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-lg shadow-lg">
+            <div className="px-5 py-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-900">Justificación de modificación</h2>
+              <p className="text-sm text-gray-600 mt-1">Este cambio quedará registrado en historial con fecha y hora.</p>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <textarea
+                value={justificacion}
+                onChange={(e) => setJustificacion(e.target.value)}
+                className="w-full min-h-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500"
+                placeholder="Explique por qué está modificando estas notas"
+              />
+              <div className="text-xs text-gray-500">Fecha/hora de registro: {new Date().toLocaleString('es-PE')}</div>
+            </div>
+            <div className="px-5 py-4 border-t flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowJustificacionModal(false);
+                  setJustificacion('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={guardarNotas}
+                disabled={saving}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {saving ? 'Guardando...' : 'Confirmar y guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

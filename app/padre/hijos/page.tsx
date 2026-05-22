@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 
@@ -9,6 +9,7 @@ interface ResumenAcademico {
   alumnoNombres: string;
   alumnoApellidos: string;
   alumnoCodigo: string;
+  nivel?: 'INICIAL' | 'PRIMARIA' | 'SECUNDARIA';
   gradoNombre: string;
   seccionNombre: string;
   anioEscolar: number;
@@ -51,6 +52,16 @@ export default function HijosPage() {
     }
   };
 
+  const hijosPorNivel = useMemo(() => {
+    const niveles = ['INICIAL', 'PRIMARIA', 'SECUNDARIA'] as const;
+    return niveles
+      .map((nivel) => ({
+        nivel,
+        hijos: hijos.filter((hijo) => hijo.nivel === nivel),
+      }))
+      .filter((grupo) => grupo.hijos.length > 0);
+  }, [hijos]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -77,74 +88,82 @@ export default function HijosPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Alumno
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Grado y Sección
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Promedio
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Cursos
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {hijos.map((hijo) => (
-                <tr key={hijo.alumnoId} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {hijo.alumnoApellidos}, {hijo.alumnoNombres}
-                      </div>
-                      <div className="text-xs text-gray-500">{hijo.alumnoCodigo}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
-                      {hijo.gradoNombre} - {hijo.seccionNombre}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {hijo.promedioGeneral != null ? (
-                      <div className="flex items-center justify-center space-x-2">
-                        <span className="text-sm font-medium">{Number(hijo.promedioGeneral).toFixed(2)}</span>
-                        <span className={`px-2 py-1 text-xs font-bold rounded ${getLiteralColor(hijo.literalGeneral)}`}>
-                          {hijo.literalGeneral}
+        <div className="space-y-4">
+          {hijosPorNivel.map((grupo) => (
+            <div key={grupo.nivel} className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-3 border-b bg-gray-50 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-800">Nivel {grupo.nivel}</h2>
+                <span className="text-xs text-gray-500">{grupo.hijos.length} hijos</span>
+              </div>
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Alumno
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Grado y Sección
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Promedio
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cursos
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {grupo.hijos.map((hijo) => (
+                    <tr key={hijo.alumnoId} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {hijo.alumnoApellidos}, {hijo.alumnoNombres}
+                          </div>
+                          <div className="text-xs text-gray-500">{hijo.alumnoCodigo}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-900">
+                          {hijo.gradoNombre} - {hijo.seccionNombre}
                         </span>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <div className="text-sm">
-                      <span className="text-green-600">{hijo.cursosAprobados}</span>
-                      <span className="text-gray-400"> / </span>
-                      <span className="text-gray-600">{hijo.totalCursos}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <Link
-                      href={`/padre/hijos/${hijo.alumnoId}`}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      Ver Boleta
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        {hijo.promedioGeneral != null ? (
+                          <div className="flex items-center justify-center space-x-2">
+                            <span className="text-sm font-medium">{Number(hijo.promedioGeneral).toFixed(2)}</span>
+                            <span className={`px-2 py-1 text-xs font-bold rounded ${getLiteralColor(hijo.literalGeneral)}`}>
+                              {hijo.literalGeneral}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="text-sm">
+                          <span className="text-green-600">{hijo.cursosAprobados}</span>
+                          <span className="text-gray-400"> / </span>
+                          <span className="text-gray-600">{hijo.totalCursos}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <Link
+                          href={`/padre/hijos/${hijo.alumnoId}`}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          Ver Boleta
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </div>
       )}
     </div>

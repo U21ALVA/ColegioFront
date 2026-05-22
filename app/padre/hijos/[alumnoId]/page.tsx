@@ -44,6 +44,20 @@ interface Bimestre {
   cerrado: boolean;
 }
 
+interface NotaHistorial {
+  id: string;
+  cursoNombre: string;
+  bimestreNumero: number;
+  campo: string;
+  valorAnterior: string | null;
+  valorNuevo: string | null;
+  motivo: string | null;
+  usuarioUsername: string | null;
+  docenteNombres: string | null;
+  docenteApellidos: string | null;
+  createdAt: string;
+}
+
 export default function BoletaPage() {
   const params = useParams();
   const alumnoId = params.alumnoId as string;
@@ -52,6 +66,7 @@ export default function BoletaPage() {
   const [bimestres, setBimestres] = useState<Bimestre[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [historial, setHistorial] = useState<NotaHistorial[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -60,12 +75,14 @@ export default function BoletaPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [boletaRes, bimestresRes] = await Promise.all([
+      const [boletaRes, bimestresRes, historialRes] = await Promise.all([
         api.get<Boleta>(`/api/boletas/alumno/${alumnoId}`),
         api.get<Bimestre[]>('/api/bimestres/activos'),
+        api.get<NotaHistorial[]>(`/api/notas/historial/alumno/${alumnoId}`),
       ]);
       setBoleta(boletaRes.data);
       setBimestres(bimestresRes.data);
+      setHistorial(historialRes.data);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('No se pudieron cargar los datos');
@@ -239,6 +256,44 @@ export default function BoletaPage() {
         >
           Imprimir Boleta
         </button>
+      </div>
+
+      <div className="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Historial de notas</h2>
+        </div>
+        {historial.length === 0 ? (
+          <div className="px-6 py-5 text-sm text-gray-500">No hay modificaciones registradas.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-4 py-2 text-left">Fecha/Hora</th>
+                  <th className="px-4 py-2 text-left">Curso</th>
+                  <th className="px-4 py-2 text-left">Bimestre</th>
+                  <th className="px-4 py-2 text-left">Campo</th>
+                  <th className="px-4 py-2 text-left">Cambio</th>
+                  <th className="px-4 py-2 text-left">Justificación</th>
+                  <th className="px-4 py-2 text-left">Docente</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {historial.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-2">{new Date(item.createdAt).toLocaleString('es-PE')}</td>
+                    <td className="px-4 py-2">{item.cursoNombre}</td>
+                    <td className="px-4 py-2">Bim {item.bimestreNumero}</td>
+                    <td className="px-4 py-2 uppercase">{item.campo}</td>
+                    <td className="px-4 py-2">{item.valorAnterior || '-'} -&gt; {item.valorNuevo || '-'}</td>
+                    <td className="px-4 py-2">{item.motivo || '-'}</td>
+                    <td className="px-4 py-2">{item.docenteApellidos && item.docenteNombres ? `${item.docenteApellidos}, ${item.docenteNombres}` : `@${item.usuarioUsername || '-'}`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

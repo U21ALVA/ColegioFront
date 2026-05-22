@@ -121,6 +121,7 @@ export interface SiagieExportRequest {
   gradoId?: string;
   seccionId?: string;
   tipo: string;
+  formato?: 'XLSX' | 'CSV' | 'PDF';
 }
 
 export interface SiagieExportResponse {
@@ -133,6 +134,7 @@ export interface SiagieExportResponse {
 export interface ExportacionSiagieDto {
   id: string;
   tipo: string;
+  formato?: string;
   periodo: string;
   archivoUrl: string;
   usuarioId: string;
@@ -237,14 +239,28 @@ export const siagieApi = {
       responseType: 'blob',
     });
 
-    const blob = new Blob([response.data], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
+    const contentType = (response.headers['content-type'] as string) || 'application/octet-stream';
+    const contentDisposition = (response.headers['content-disposition'] as string) || '';
+    const blob = new Blob([response.data], { type: contentType });
 
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = fileName || `siagie_${id}.xlsx`;
+    let safeName = fileName;
+    if (!safeName && contentDisposition) {
+      const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+      const asciiMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+      const rawName = utf8Match?.[1] || asciiMatch?.[1];
+      if (rawName) {
+        safeName = decodeURIComponent(rawName);
+      }
+    }
+    if (!safeName) {
+      if (contentType.includes('pdf')) safeName = `siagie_${id}.pdf`;
+      else if (contentType.includes('csv')) safeName = `siagie_${id}.csv`;
+      else safeName = `siagie_${id}.xlsx`;
+    }
+    link.download = safeName;
     document.body.appendChild(link);
     link.click();
     link.remove();

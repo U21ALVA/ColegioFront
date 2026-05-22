@@ -169,6 +169,12 @@ export default function UsuariosPage() {
   }, [currentPage, search, tipoFilter, estadoFilter, gradoFilter, seccionFilter]);
 
   const filteredSeccionesForm = useMemo(() => secciones, [secciones]);
+  const gruposPorRol = useMemo(() => {
+    const order: TipoUsuario[] = ['ADMIN', 'PROFESOR', 'PADRE'];
+    return order
+      .map((tipo) => ({ tipo, items: items.filter((item) => item.tipo === tipo) }))
+      .filter((grupo) => grupo.items.length > 0);
+  }, [items]);
 
   const fetchGrados = async () => {
     try {
@@ -469,33 +475,39 @@ export default function UsuariosPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {items.map((item) => (
-                    <tr key={`${item.tipo}-${item.id}`} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-700">{item.tipo}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <div className="font-medium">{item.apellidos || '-'}, {item.nombres || '-'}</div>
-                        
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <div>DNI: {item.dni || '-'}</div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <div className="text-xs text-gray-500">{item.email || '-'}</div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {item.estado || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <div className="flex gap-3">
-                          <button className="text-primary-600 hover:text-primary-900" onClick={() => openEditModal(item)}>Editar</button>
-                          <button className="text-amber-600 hover:text-amber-800" onClick={() => openPasswordModal(item)}>Reset pass</button>
-                          <button className="text-red-600 hover:text-red-900" onClick={() => handleDelete(item)}>Eliminar</button>
-                        </div>
+                {gruposPorRol.map((grupo) => (
+                  <tbody key={grupo.tipo} className="bg-white divide-y divide-gray-200">
+                    <tr className="bg-slate-100">
+                      <td colSpan={6} className="px-4 py-2 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                        {grupo.tipo} ({grupo.items.length})
                       </td>
                     </tr>
-                  ))}
-                </tbody>
+                    {grupo.items.map((item) => (
+                      <tr key={`${item.tipo}-${item.id}`} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-700">{item.tipo}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          <div className="font-medium">{item.apellidos || '-'}, {item.nombres || '-'}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          <div>DNI: {item.dni || '-'}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          <div className="text-xs text-gray-500">{item.email || '-'}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {item.estado || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          <div className="flex gap-3">
+                            <button className="text-primary-600 hover:text-primary-900" onClick={() => openEditModal(item)}>Editar</button>
+                            <button className="text-amber-600 hover:text-amber-800" onClick={() => openPasswordModal(item)}>Reset pass</button>
+                            <button className="text-red-600 hover:text-red-900" onClick={() => handleDelete(item)}>Eliminar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                ))}
               </table>
             </div>
 

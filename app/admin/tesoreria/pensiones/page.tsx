@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
-import { SearchInput, Pagination, Badge, Select } from '@/components';
+import { SearchInput, Pagination, Badge, Select, Modal } from '@/components';
 
 interface Pension {
   id: string;
@@ -20,6 +20,16 @@ interface Pension {
   montoFinal: number;
   estado: 'PENDIENTE' | 'PAGADO' | 'VENCIDO' | 'PARCIAL';
   fechaVencimiento: string;
+}
+
+interface AlumnoPensionesGroup {
+  alumnoId: string;
+  alumnoNombres: string;
+  alumnoApellidos: string;
+  alumnoCodigo: string;
+  alumnoGrado: string;
+  alumnoSeccion: string;
+  pensiones: Pension[];
 }
 
 interface AnioEscolar {
@@ -68,6 +78,8 @@ export default function PensionesPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedAlumno, setSelectedAlumno] = useState<AlumnoPensionesGroup | null>(null);
+  const [showAlumnoModal, setShowAlumnoModal] = useState(false);
 
   const [filterMes, setFilterMes] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
@@ -176,13 +188,37 @@ export default function PensionesPage() {
     ) : estado;
   };
 
-  const displayedPensiones = search
-    ? pensiones.filter(p =>
-        p.alumnoNombres.toLowerCase().includes(search.toLowerCase()) ||
-        p.alumnoApellidos.toLowerCase().includes(search.toLowerCase()) ||
-        p.alumnoCodigo?.toLowerCase().includes(search.toLowerCase())
+  const groupedByAlumno = Object.values(
+    pensiones.reduce((acc, pension) => {
+      const key = pension.alumnoId;
+      if (!acc[key]) {
+        acc[key] = {
+          alumnoId: pension.alumnoId,
+          alumnoNombres: pension.alumnoNombres,
+          alumnoApellidos: pension.alumnoApellidos,
+          alumnoCodigo: pension.alumnoCodigo,
+          alumnoGrado: pension.alumnoGrado,
+          alumnoSeccion: pension.alumnoSeccion,
+          pensiones: [],
+        };
+      }
+      acc[key].pensiones.push(pension);
+      return acc;
+    }, {} as Record<string, AlumnoPensionesGroup>)
+  );
+
+  const displayedAlumnos = search
+    ? groupedByAlumno.filter((a) =>
+        a.alumnoNombres.toLowerCase().includes(search.toLowerCase()) ||
+        a.alumnoApellidos.toLowerCase().includes(search.toLowerCase()) ||
+        a.alumnoCodigo?.toLowerCase().includes(search.toLowerCase())
       )
-    : pensiones;
+    : groupedByAlumno;
+
+  const openAlumnoModal = (alumno: AlumnoPensionesGroup) => {
+    setSelectedAlumno(alumno);
+    setShowAlumnoModal(true);
+  };
 
   // Stats
   const stats = {
@@ -251,6 +287,7 @@ export default function PensionesPage() {
       <div className="bg-white rounded-lg shadow p-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <SearchInput
+            label="Buscar"
             value={search}
             onChange={setSearch}
             placeholder="Buscar por alumno..."
@@ -291,7 +328,7 @@ export default function PensionesPage() {
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
           </div>
-        ) : displayedPensiones.length === 0 ? (
+        ) : displayedAlumnos.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             No hay pensiones registradas. Use el botón &quot;Generar&quot; para crear pensiones.
           </div>
@@ -301,61 +338,48 @@ export default function PensionesPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Alumno</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mes</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Descuento</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vencimiento</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {displayedPensiones.map((pension, idx) => (
-                    <tr key={pension.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Alumno</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grado</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total pensiones</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Pendientes</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Pagadas</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                  {displayedAlumnos.map((alumno, idx) => {
+                    const pendientes = alumno.pensiones.filter((p) => p.estado === 'PENDIENTE').length;
+                    const pagadas = alumno.pensiones.filter((p) => p.estado === 'PAGADO').length;
+                    return (
+                    <tr key={alumno.alumnoId} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {pension.alumnoApellidos}, {pension.alumnoNombres}
+                          {alumno.alumnoApellidos}, {alumno.alumnoNombres}
                         </div>
-                        <div className="text-xs text-gray-500">{pension.alumnoCodigo}</div>
+                        <div className="text-xs text-gray-500">{alumno.alumnoCodigo}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {pension.alumnoGrado} {pension.alumnoSeccion}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant="info">{pension.nombreMes}</Badge>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-right text-sm text-gray-900">
-                        S/. {pension.monto.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-right text-sm text-green-600">
-                        {pension.descuento > 0 ? `-S/. ${pension.descuento.toFixed(2)}` : '-'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <span className="text-sm font-bold text-gray-900">S/. {pension.montoFinal.toFixed(2)}</span>
+                        {alumno.alumnoGrado} {alumno.alumnoSeccion}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        {getEstadoBadge(pension.estado)}
+                        <Badge variant="info">{alumno.pensiones.length}</Badge>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(pension.fechaVencimiento).toLocaleDateString('es-PE')}
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <Badge variant="warning">{pendientes}</Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <Badge variant="success">{pagadas}</Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <select
-                          value={pension.estado}
-                          onChange={(e) => handleUpdateEstado(pension, e.target.value)}
-                          className="text-sm border-gray-300 rounded"
-                          disabled={pension.estado === 'PAGADO'}
+                        <button
+                          onClick={() => openAlumnoModal(alumno)}
+                          className="text-primary-600 hover:text-primary-900"
                         >
-                          {ESTADOS.map(e => (
-                            <option key={e.value} value={e.value}>{e.label}</option>
-                          ))}
-                        </select>
+                          Ver pensiones
+                        </button>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
@@ -371,6 +395,63 @@ export default function PensionesPage() {
           </>
         )}
       </div>
+
+      <Modal
+        isOpen={showAlumnoModal}
+        onClose={() => setShowAlumnoModal(false)}
+        title={selectedAlumno ? `Pensiones - ${selectedAlumno.alumnoApellidos}, ${selectedAlumno.alumnoNombres}` : 'Pensiones del alumno'}
+        size="xl"
+      >
+        {!selectedAlumno ? (
+          <div className="text-sm text-gray-500">Sin alumno seleccionado.</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              Código: <span className="font-medium text-gray-900">{selectedAlumno.alumnoCodigo}</span> ·
+              {' '}Grado/Sección: <span className="font-medium text-gray-900">{selectedAlumno.alumnoGrado} {selectedAlumno.alumnoSeccion}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Mes</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Descuento</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                    <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vencimiento</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {selectedAlumno.pensiones.map((p) => (
+                    <tr key={p.id}>
+                      <td className="px-4 py-2 text-sm text-gray-900">{p.nombreMes}</td>
+                      <td className="px-4 py-2 text-sm text-right">S/. {p.monto.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-right text-green-600">{p.descuento > 0 ? `-S/. ${p.descuento.toFixed(2)}` : '-'}</td>
+                      <td className="px-4 py-2 text-sm text-right font-semibold">S/. {p.montoFinal.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-center">{getEstadoBadge(p.estado)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-500">{new Date(p.fechaVencimiento).toLocaleDateString('es-PE')}</td>
+                      <td className="px-4 py-2 text-sm">
+                        <select
+                          value={p.estado}
+                          onChange={(e) => handleUpdateEstado(p, e.target.value)}
+                          className="text-sm border-gray-300 rounded"
+                          disabled={p.estado === 'PAGADO'}
+                        >
+                          {ESTADOS.map((e) => (
+                            <option key={e.value} value={e.value}>{e.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
