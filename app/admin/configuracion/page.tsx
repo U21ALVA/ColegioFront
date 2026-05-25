@@ -21,6 +21,66 @@ interface Bimestre {
   anioEscolarId: string;
 }
 
+interface NoticeState {
+  type: 'success' | 'warning' | 'error';
+  text: string;
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function parseDateToUTC(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+
+  if (!year || !month || !day) {
+    throw new Error('Formato de fecha inválido. Debe ser YYYY-MM-DD.');
+  }
+
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function formatUTCDate(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysUTC(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * MS_PER_DAY);
+}
+
+function buildDefaultBimestres(fechaInicio: string, fechaFin: string) {
+  const start = parseDateToUTC(fechaInicio);
+  const end = parseDateToUTC(fechaFin);
+
+  const totalDays = Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY) + 1;
+
+  if (totalDays < 4) {
+    throw new Error('El rango del año escolar debe tener al menos 4 días para crear 4 bimestres.');
+  }
+
+  const base = Math.floor(totalDays / 4);
+  const remainder = totalDays % 4;
+
+  const ranges: Array<{ numero: number; fechaInicio: string; fechaFin: string }> = [];
+  let cursor = start;
+
+  for (let i = 0; i < 4; i++) {
+    const length = base + (i < remainder ? 1 : 0);
+    const rangeEnd = addDaysUTC(cursor, length - 1);
+
+    ranges.push({
+      numero: i + 1,
+      fechaInicio: formatUTCDate(cursor),
+      fechaFin: formatUTCDate(rangeEnd),
+    });
+
+    cursor = addDaysUTC(rangeEnd, 1);
+  }
+
+  return ranges;
+}
+
 export default function ConfiguracionPage() {
   const [aniosEscolares, setAniosEscolares] = useState<AnioEscolar[]>([]);
   const [bimestres, setBimestres] = useState<Bimestre[]>([]);
@@ -28,6 +88,7 @@ export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true);
   const [showAnioModal, setShowAnioModal] = useState(false);
   const [editingAnio, setEditingAnio] = useState<AnioEscolar | null>(null);
+  const [notice, setNotice] = useState<NoticeState | null>(null);
 
   useEffect(() => {
     fetchAniosEscolares();
@@ -39,10 +100,19 @@ export default function ConfiguracionPage() {
     }
   }, [selectedAnio]);
 
-  const fetchAniosEscolares = async () => {
+  const fetchAniosEscolares = async (preferredAnioId?: string) => {
     try {
       const response = await api.get<AnioEscolar[]>('/api/anios-escolares');
       setAniosEscolares(response.data);
+
+      if (preferredAnioId) {
+        const selected = response.data.find((a) => a.id === preferredAnioId);
+        if (selected) {
+          setSelectedAnio(selected);
+          return;
+        }
+      }
+
       const activo = response.data.find((a) => a.activo);
       if (activo) setSelectedAnio(activo);
       else if (response.data.length > 0) setSelectedAnio(response.data[0]);
@@ -109,6 +179,20 @@ export default function ConfiguracionPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Configuración Académica</h1>
       </div>
+
+      {notice && (
+        <div
+          className={`p-3 rounded-md text-sm border ${
+            notice.type === 'success'
+              ? 'bg-green-50 text-green-700 border-green-200'
+              : notice.type === 'warning'
+              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+              : 'bg-red-50 text-red-700 border-red-200'
+          }`}
+        >
+          {notice.text}
+        </div>
+      )}
 
       {/* Años Escolares */}
       <div className="bg-white rounded-lg shadow p-6">
@@ -218,9 +302,19 @@ export default function ConfiguracionPage() {
       >
         <AnioEscolarForm
           anio={editingAnio}
-          onSuccess={() => {
+          onSuccess={(createdAnioId, warningMessage) => {
             setShowAnioModal(false);
-            fetchAniosEscolares();
+            fetchAniosEscolares(createdAnioId);
+
+            if (warningMessage) {
+              setNotice({ type: 'warning', text: warningMessage });
+              return;
+            }
+
+            setNotice({
+              type: 'success',
+              text: editingAnio ? 'Año escolar actualizado correctamente.' : 'Año escolar creado con sus 4 bimestres.',
+            });
           }}
           onCancel={() => setShowAnioModal(false)}
         />
@@ -231,7 +325,7 @@ export default function ConfiguracionPage() {
 
 interface AnioEscolarFormProps {
   anio: AnioEscolar | null;
-  onSuccess: () => void;
+  onSuccess: (createdAnioId?: string, warningMessage?: string) => void;
   onCancel: () => void;
 }
 
@@ -250,12 +344,44 @@ function AnioEscolarForm({ anio, onSuccess, onCancel }: AnioEscolarFormProps) {
     setError('');
 
     try {
+      if (formData.fechaFin < formData.fechaInicio) {
+        throw new Error('La fecha de fin no puede ser menor que la fecha de inicio.');
+      }
+
       if (anio) {
         await api.put(`/api/anios-escolares/${anio.id}`, formData);
+        onSuccess(anio.id);
       } else {
-        await api.post('/api/anios-escolares', formData);
+        const createdAnioResponse = await api.post<AnioEscolar>('/api/anios-escolares', formData);
+        const createdAnio = createdAnioResponse.data;
+
+        const defaultBimestres = buildDefaultBimestres(formData.fechaInicio, formData.fechaFin);
+
+        const results = await Promise.allSettled(
+          defaultBimestres.map((bimestre) =>
+            api.post('/api/bimestres', {
+              numero: bimestre.numero,
+              anioEscolarId: createdAnio.id,
+              fechaInicio: bimestre.fechaInicio,
+              fechaFin: bimestre.fechaFin,
+            })
+          )
+        );
+
+        const failed = results
+          .map((result, index) => ({ result, numero: defaultBimestres[index].numero }))
+          .filter((item) => item.result.status === 'rejected');
+
+        if (failed.length > 0) {
+          const failedList = failed.map((f) => f.numero).join(', ');
+          onSuccess(
+            createdAnio.id,
+            `Año escolar creado, pero falló la creación de los bimestres: ${failedList}. Revisá logs/API y reintentá.`
+          );
+        } else {
+          onSuccess(createdAnio.id);
+        }
       }
-      onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al guardar');
     } finally {
